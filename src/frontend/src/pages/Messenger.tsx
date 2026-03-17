@@ -35,35 +35,164 @@ interface Conversation {
 
 const STORAGE_KEY_FRIENDS = "th_friends";
 const STORAGE_KEY_CONVOS = "th_convos";
+const ME = "me";
 
-function loadFriends(): Friend[] {
+const DEMO_FRIENDS: Friend[] = [
+  { id: "alex-trader-001", name: "Alex Trader" },
+  { id: "sarah-fx-002", name: "Sarah FX" },
+  { id: "mike-scalper-003", name: "Mike Scalper" },
+];
+
+const now = Date.now();
+const DEMO_CONVOS: Record<string, Conversation> = {
+  "alex-trader-001": {
+    friendId: "alex-trader-001",
+    messages: [
+      {
+        id: "d1",
+        senderId: "alex-trader-001",
+        text: "Hey! Did you catch the EUR/USD move this morning? 📈",
+        ts: now - 3600000 * 3,
+      },
+      {
+        id: "d2",
+        senderId: ME,
+        text: "Yeah, caught 45 pips on the breakout! Was waiting for that level all week",
+        ts: now - 3600000 * 3 + 60000,
+      },
+      {
+        id: "d3",
+        senderId: "alex-trader-001",
+        text: "Nice trade! I entered a bit late, only got 28 pips but still a good day",
+        ts: now - 3600000 * 2,
+      },
+      {
+        id: "d4",
+        senderId: ME,
+        text: "Better late than never 😄 What are you watching for the NY session?",
+        ts: now - 3600000 * 2 + 120000,
+      },
+      {
+        id: "d5",
+        senderId: "alex-trader-001",
+        text: "GBP/JPY looks interesting. Big resistance at 187.50, if it breaks could go 200 pips",
+        ts: now - 1800000,
+      },
+    ],
+  },
+  "sarah-fx-002": {
+    friendId: "sarah-fx-002",
+    messages: [
+      {
+        id: "e1",
+        senderId: "sarah-fx-002",
+        text: "Good morning! Markets looking volatile today 👀",
+        ts: now - 7200000,
+      },
+      {
+        id: "e2",
+        senderId: ME,
+        text: "Morning Sarah! Yeah NFP data dropping soon, being careful",
+        ts: now - 7200000 + 90000,
+      },
+      {
+        id: "e3",
+        senderId: "sarah-fx-002",
+        text: "Smart move. I'm staying flat until the dust settles. Last NFP wrecked me lol",
+        ts: now - 5400000,
+      },
+      {
+        id: "e4",
+        senderId: ME,
+        text: "Same 😅 Risk management first. How's your week going overall?",
+        ts: now - 3600000,
+      },
+      {
+        id: "e5",
+        senderId: "sarah-fx-002",
+        text: "Up 2.3% so far, happy with that. Sticking to the plan!",
+        ts: now - 1200000,
+      },
+    ],
+  },
+  "mike-scalper-003": {
+    friendId: "mike-scalper-003",
+    messages: [
+      {
+        id: "f1",
+        senderId: "mike-scalper-003",
+        text: "Bro, XAU/USD is printing 🔥 just took 3 scalp trades in 10 mins",
+        ts: now - 5400000,
+      },
+      {
+        id: "f2",
+        senderId: ME,
+        text: "Gold has been insane! What time frame you scalping on?",
+        ts: now - 5400000 + 30000,
+      },
+      {
+        id: "f3",
+        senderId: "mike-scalper-003",
+        text: "1-min chart, 5-pip targets. Quick in quick out 💨",
+        ts: now - 5400000 + 90000,
+      },
+      {
+        id: "f4",
+        senderId: ME,
+        text: "Respect the discipline. I prefer 15-min myself, less stress",
+        ts: now - 3000000,
+      },
+      {
+        id: "f5",
+        senderId: "mike-scalper-003",
+        text: "Different styles, same goal haha! Keep grinding 💪",
+        ts: now - 2400000,
+      },
+    ],
+  },
+};
+
+function initializeData(): {
+  friends: Friend[];
+  convos: Record<string, Conversation>;
+} {
+  let friends: Friend[];
+  let convos: Record<string, Conversation>;
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY_FRIENDS) || "[]");
+    friends = JSON.parse(localStorage.getItem(STORAGE_KEY_FRIENDS) || "[]");
   } catch {
-    return [];
+    friends = [];
   }
+  try {
+    convos = JSON.parse(localStorage.getItem(STORAGE_KEY_CONVOS) || "{}");
+  } catch {
+    convos = {};
+  }
+
+  // Seed demo data on first visit
+  if (friends.length === 0) {
+    friends = DEMO_FRIENDS;
+    convos = DEMO_CONVOS;
+    localStorage.setItem(STORAGE_KEY_FRIENDS, JSON.stringify(friends));
+    localStorage.setItem(STORAGE_KEY_CONVOS, JSON.stringify(convos));
+  }
+
+  return { friends, convos };
 }
+
 function saveFriends(f: Friend[]) {
   localStorage.setItem(STORAGE_KEY_FRIENDS, JSON.stringify(f));
-}
-function loadConvos(): Record<string, Conversation> {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY_CONVOS) || "{}");
-  } catch {
-    return {};
-  }
 }
 function saveConvos(c: Record<string, Conversation>) {
   localStorage.setItem(STORAGE_KEY_CONVOS, JSON.stringify(c));
 }
 
-const ME = "me";
-
 export default function Messenger() {
-  const [friends, setFriends] = useState<Friend[]>(loadFriends);
-  const [convos, setConvos] =
-    useState<Record<string, Conversation>>(loadConvos);
-  const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null);
+  const [{ friends, convos }, setData] = useState(() => initializeData());
+  const [selectedFriend, setSelectedFriend] = useState<Friend | null>(() => {
+    const { friends: f } = initializeData();
+    return f[0] ?? null;
+  });
   const [text, setText] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -78,7 +207,7 @@ export default function Messenger() {
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional scroll trigger
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+  }, [messages.length, selectedFriend?.id]);
 
   const sendMessage = (content: {
     text?: string;
@@ -96,15 +225,15 @@ export default function Messenger() {
       isImage: content.isImage,
       ts: Date.now(),
     };
-    const updated = {
+    const updatedConvos = {
       ...convos,
       [selectedFriend.id]: {
         friendId: selectedFriend.id,
         messages: [...(convos[selectedFriend.id]?.messages || []), msg],
       },
     };
-    setConvos(updated);
-    saveConvos(updated);
+    setData((prev) => ({ ...prev, convos: updatedConvos }));
+    saveConvos(updatedConvos);
     setText("");
   };
 
@@ -124,12 +253,13 @@ export default function Messenger() {
   const addFriend = () => {
     if (!newName.trim() || !newId.trim()) return;
     const f: Friend = { id: newId.trim(), name: newName.trim() };
-    const updated = [...friends, f];
-    setFriends(updated);
-    saveFriends(updated);
+    const updatedFriends = [...friends, f];
+    setData((prev) => ({ ...prev, friends: updatedFriends }));
+    saveFriends(updatedFriends);
     setAddOpen(false);
     setNewName("");
     setNewId("");
+    setSelectedFriend(f);
   };
 
   return (
@@ -267,9 +397,7 @@ export default function Messenger() {
                 </Avatar>
                 <div>
                   <p className="text-sm font-semibold">{selectedFriend.name}</p>
-                  <p className="text-xs text-muted-foreground font-mono truncate max-w-[200px]">
-                    {selectedFriend.id}
-                  </p>
+                  <p className="text-xs text-green-500 font-medium">● Online</p>
                 </div>
               </div>
 
@@ -294,6 +422,13 @@ export default function Messenger() {
                             isMe ? "justify-end" : "justify-start",
                           )}
                         >
+                          {!isMe && (
+                            <Avatar className="h-6 w-6 mr-2 flex-shrink-0 self-end">
+                              <AvatarFallback className="text-xs bg-primary/20 text-primary">
+                                {selectedFriend.name[0].toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                          )}
                           <div
                             className={cn(
                               "max-w-[70%] rounded-2xl px-4 py-2 text-sm",
